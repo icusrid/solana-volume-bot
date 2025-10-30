@@ -1,12 +1,15 @@
 {
 	"name": "solana-volume-bot",
 	"version": "1.0.0",
-	"description": "https://t.me/benorizz0",
+	"description": "https://t.me/icus101",
 	"main": "index.js",
 	"scripts": {
-		"start": "ts-node jitoPool.ts"
+		"dev": "ts-node telegram-bot.ts",
+		"build": "tsc",
+		"vercel-build": "npm run build",
+		"start": "node dist/telegram-bot.js"
 	},
-	"author": "https://t.me/benorizz0",
+	"author": "https://t.me/icus101",
 	"license": "ISC",
 	"dependencies": {
 		"@coral-xyz/anchor": "^0.29.0",
@@ -20,6 +23,7 @@
 		"bs58": "^5.0.0",
 		"convict": "^6.2.4",
 		"dotenv": "^16.6.1",
+		"express": "^5.1.0",
 		"fs": "^0.0.1-security",
 		"http": "^0.0.1-security",
 		"https": "^1.0.0",
@@ -37,10 +41,12 @@
 	"devDependencies": {
 		"@types/bn.js": "^5.1.5",
 		"@types/convict": "^6.1.6",
+		"@types/express": "^5.0.5",
 		"@types/node": "^20.11.30",
 		"@types/node-fetch": "^2.6.9",
 		"@types/node-telegram-bot-api": "^0.64.12",
-		"@types/prompt-sync": "^4.2.3"
+		"@types/prompt-sync": "^4.2.3",
+		"vercel": "^48.6.7"
 	},
 	"overrides": {
 		"rpc-websockets": "7.9.0",

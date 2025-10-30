@@ -9,8 +9,21 @@ import { Keypair, PublicKey } from "@solana/web3.js";
 import fs from "fs";
 import path from "path";
 import { setUserWallet } from "./config";
+import express from 'express';
+import { Update } from "telegraf/typings/core/types/typegram";
 
 dotenv.config();
+
+const app = express();
+app.use(express.json());
+
+app.post(`/bot${process.env.TELEGRAM_TOKEN}`, (req: { body: Update; }, res: { sendStatus: (arg0: number) => void; }) => {
+  bot.handleUpdate(req.body);
+  res.sendStatus(200);
+});
+
+app.get('/', (req, res) => res.send('🚀 Solana Volume Bot Live!'));
+
 
 // === MARKDOWN V2 ESCAPE ===
 const esc = (text: string): string =>
@@ -402,12 +415,23 @@ bot.on("text", async (ctx) => {
   }
 });
 // === Launch ===
-bot.launch({
-    webhook: {
-        domain: process.env.WEBHOOK_DOMAIN || "https://beda5533bbcb.ngrok-free.app",
-        port: parseInt(process.env.WEBHOOK_PORT || "3000"),
-    },
-}).then(() => console.log("✅ Volume Bot is running..."));
+// bot.launch({
+//     webhook: {
+//         domain: process.env.WEBHOOK_DOMAIN || "https://solana-volume-bot-flax.vercel.app",
+//         port: parseInt(process.env.WEBHOOK_PORT || "3000"),
+//     },
+// }).then(() => console.log("✅ Volume Bot is running..."));
+
+const port = process.env.PORT || 3000;
+
+app.listen(port, async () => {
+  console.log(`🌐 Bot on port ${port}`);
+  
+  // Auto-set webhook
+  const webhookUrl = `https://${process.env.WEBHOOK_DOMAIN}/bot${process.env.TELEGRAM_TOKEN}`;
+  await bot.telegram.setWebhook(webhookUrl);
+  console.log('✅ Webhook:', webhookUrl);
+});
 
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));

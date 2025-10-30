@@ -3,15 +3,20 @@ import { volume } from "./src/bot";
 import { sender, createReturns } from "./src/distribute";
 import { calculateVolumeAndSolLoss } from "./src/simulate";
 import promptSync from "prompt-sync";
+import { 
+    Keypair,   
+} from "@solana/web3.js";
+import { wallet } from "./config";
 
 const prompt = promptSync();
 
 async function main() {
 	let running = true;
+	
 
 	while (running) {
 		console.log("DM me for info");
-		console.log("https://t.me/benorizz0");
+		console.log("https://t.me/icus101");
 		console.log("solana-scripts.com");
 		console.log("\nMenu:");
 		console.log("1. Create Keypairs");
@@ -25,10 +30,11 @@ async function main() {
 
 		switch (answer) {
 			case "1":
+				// Ask user: create or use? (via inline buttons)
 				await createKeypairs();
 				break;
 			case "2":
-				await sender();
+				await sender(wallet.publicKey);
 				break;
 			case "3":
 				await calculateVolumeAndSolLoss();

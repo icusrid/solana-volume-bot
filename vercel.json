@@ -2,17 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "package.json",
+      "src": "telegram-bot.ts",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/dist/telegram-bot.js"
+      "dest": "/telegram-bot.ts"
     }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  }
+  ]
 }

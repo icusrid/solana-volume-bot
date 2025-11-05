@@ -23,6 +23,8 @@ app.post(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
 });
 app.get('/', (req, res) => res.send('🚀 Solana Volume Bot Live!'));
 
+app.use(express.json({ type: "application/json" }));
+
 
 
 // === MARKDOWN V2 ESCAPE ===
@@ -428,24 +430,20 @@ bot.on("text", async (ctx) => {
 });
 
 // === Launch ===
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // Use webhook in production, polling in dev
 if (process.env.RAILWAY_ENVIRONMENT) {
-  // Railway: use Express + webhook
-  app.listen(PORT, () => {
-    const webhookUrl = `https://${process.env.RAILWAY_STATIC_URL}/bot${process.env.TELEGRAM_TOKEN}`;
-    console.log(`Webhook URL: ${webhookUrl}`);
-    
-    // Auto-set webhook on start
-    bot.telegram.setWebhook(webhookUrl).then(() => {
-      console.log("Webhook set to:", webhookUrl);
-    });
+  app.listen(PORT, "0.0.0.0", () => {
+    const url = `https://${process.env.RAILWAY_STATIC_URL}/bot${process.env.TELEGRAM_TOKEN}`;
+    console.log("LIVE →", url);
+    bot.telegram.setWebhook(url)
+      .then(() => console.log("Webhook registered"))
+      .catch(e => console.error("Webhook FAIL:", e.message));
   });
 } else {
-  // Local dev: polling
-  bot.launch();
-  console.log("Polling mode (local)");
+  bot.launch(); // polling
+  console.log("Polling (local)");
 }
 
 process.once("SIGINT", () => bot.stop("SIGINT"));

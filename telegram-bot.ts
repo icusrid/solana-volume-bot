@@ -10,22 +10,20 @@ import fs from "fs";
 import path from "path";
 import { setUserWallet } from "./config";
 import express from 'express';
+import { raw } from 'express';
 import { Update } from "telegraf/typings/core/types/typegram";
 
 dotenv.config();
 
 const app = express();
-app.use(express.json());
-app.use(express.json({ type: "application/json" }));
+// app.use(express.json());
+app.use(raw({ type: 'application/json' }));  // ← Telegram sends RAW body!
 
-app.post(`/bot${process.env.TELEGRAM_TOKEN}`, async (req, res) => {
-  try {
-    await bot.handleUpdate(req.body, res);
-  } catch (err) {
-    console.error("Webhook error:", err);
-    if (!res.headersSent) res.sendStatus(200); // Always 200
-  }
+app.post(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
+  bot.handleUpdate(req.body);    // now works with raw body
+  res.sendStatus(200);           // instant 200 OK
 });
+
 app.get('/', (req, res) => {
   res.status(200).send('Volume Bot OK - Webhook Active');
 });

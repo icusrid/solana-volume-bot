@@ -16,14 +16,21 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
-
-app.post(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
-  bot.handleUpdate(req.body);
-  res.sendStatus(200);
-});
-app.get('/', (req, res) => res.send('🚀 Solana Volume Bot Live!'));
-
 app.use(express.json({ type: "application/json" }));
+
+app.post(`/bot${process.env.TELEGRAM_TOKEN}`, async (req, res) => {
+  try {
+    await bot.handleUpdate(req.body, res);
+  } catch (err) {
+    console.error("Webhook error:", err);
+    if (!res.headersSent) res.sendStatus(200); // Always 200
+  }
+});
+app.get('/', (req, res) => {
+  res.status(200).send('Volume Bot OK - Webhook Active');
+});
+
+
 
 
 
@@ -448,6 +455,13 @@ if (process.env.RAILWAY_ENVIRONMENT) {
 
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));
+
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err);
+});
+process.on('unhandledRejection', (err) => {
+  console.error('UNHANDLED REJECTION:', err);
+});
 
 
 //=== Launch ===

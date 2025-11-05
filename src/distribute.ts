@@ -1,13 +1,13 @@
 import {
-  Keypair,
-  PublicKey,
-  SystemProgram,
-  TransactionInstruction,
-  VersionedTransaction,
-  LAMPORTS_PER_SOL,
-  MessageV0,
-  Blockhash,
-  TransactionMessage,
+	Keypair,
+	PublicKey,
+	SystemProgram,
+	TransactionInstruction,
+	VersionedTransaction,
+	LAMPORTS_PER_SOL,
+	MessageV0,
+	Blockhash,
+	TransactionMessage,
 } from "@solana/web3.js";
 import { loadKeypairs } from "./createKeys";
 import { wallet, connection, tipAcct } from "../config";
@@ -21,202 +21,204 @@ import { Bundle as JitoBundle } from "jito-ts/dist/sdk/block-engine/types.js";
 //
 
 function chunkArray<T>(array: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < array.length; i += size) chunks.push(array.slice(i, i + size));
-  return chunks;
+	const chunks: T[][] = [];
+	for (let i = 0; i < array.length; i += size) chunks.push(array.slice(i, i + size));
+	return chunks;
 }
 
 /** Build + sign a VersionedTransaction (no prompts) */
 async function createAndSignVersionedTx(
-  instructions: TransactionInstruction[],
-  blockhash: string,
-  feePayer: PublicKey,
-  extraSigners: Keypair[] = []
+	instructions: TransactionInstruction[],
+	blockhash: string,
+	feePayer: PublicKey,
+	extraSigners: Keypair[] = []
 ): Promise<VersionedTransaction> {
-  const messageV0 = MessageV0.compile({
-    payerKey: feePayer,
-    instructions,
-    recentBlockhash: blockhash,
-  });
+	const messageV0 = MessageV0.compile({
+		payerKey: feePayer,
+		instructions,
+		recentBlockhash: blockhash,
+	});
 
-  const tx = new VersionedTransaction(messageV0);
+	const tx = new VersionedTransaction(messageV0);
 
-  const serialized = tx.serialize();
-  console.log("Txn size:", serialized.length);
-  if (serialized.length > 1232) console.log("tx too big");
+	const serialized = tx.serialize();
+	console.log("Txn size:", serialized.length);
+	if (serialized.length > 1232) console.log("tx too big");
 
-  tx.sign([wallet, ...extraSigners]);
-  return tx;
+	tx.sign([wallet, ...extraSigners]);
+	return tx;
 }
 
 /** Send a bundle and return the bundle id (or error) */
 async function sendBundle(bundledTxns: VersionedTransaction[]): Promise<string> {
-  const bundle = new JitoBundle(bundledTxns, bundledTxns.length);
-  const bundleId = await searcherClient.sendBundle(bundle);
-  console.log(`Bundle ${bundleId} sent.`);
-  return bundleId;
+	const bundle = new JitoBundle(bundledTxns, bundledTxns.length);
+	const bundleId = await searcherClient.sendBundle(bundle);
+	console.log(`Bundle ${bundleId} sent.`);
+	return bundleId;
 }
 
 /** -------------------------------------------------------------------------- */
 /** 1. CREATE WSOL ATA + SEND SOL (fee-only)                                   */
 /** -------------------------------------------------------------------------- */
 export interface DistributeResult {
-  success: boolean;
-  message: string;
-  txCount?: number;
-  bundleId?: string;
+	success: boolean;
+	message: string;
+	txCount?: number;
+	bundleId?: string;
 }
 
 export async function distributeSolAndCreateATA(
-  solAmt: number,          // SOL to send to each wallet (fee-only)
-  jitoTipAmt: number,      // tip in lamports
-  steps: number = 5,       // how many wallets to touch
-  feePayer: PublicKey
+	userId: number,
+	solAmt: number,          // SOL to send to each wallet (fee-only)
+	jitoTipAmt: number,      // tip in lamports
+	steps: number = 5,       // how many wallets to touch
+	feePayer: PublicKey
 ): Promise<DistributeResult> {
-  try {
-    if (solAmt <= 0 || jitoTipAmt <= 0 || steps <= 0)
-      return { success: false, message: "All numeric inputs must be > 0" };
+	try {
+		if (solAmt <= 0 || jitoTipAmt <= 0 || steps <= 0)
+			return { success: false, message: "All numeric inputs must be > 0" };
 
-    const keypairs = loadKeypairs().slice(0, steps);
-    if (keypairs.length === 0)
-      return { success: false, message: "No keypairs loaded" };
+		const keypairs = loadKeypairs(userId).slice(0, steps);
+		if (keypairs.length === 0)
+			return { success: false, message: "No keypairs loaded" };
 
-    const { blockhash } = await connection.getLatestBlockhash();
+		const { blockhash } = await connection.getLatestBlockhash();
 
-    // ── 1. Transfer SOL (fee) ─────────────────────────────────────
-    const solIxs: TransactionInstruction[] = keypairs.map((kp) =>
-      SystemProgram.transfer({
-        fromPubkey: feePayer,
-        toPubkey: kp.publicKey,
-        lamports: BigInt(solAmt * LAMPORTS_PER_SOL),
-      })
-    );
+		// ── 1. Transfer SOL (fee) ─────────────────────────────────────
+		const solIxs: TransactionInstruction[] = keypairs.map((kp) =>
+			SystemProgram.transfer({
+				fromPubkey: feePayer,
+				toPubkey: kp.publicKey,
+				lamports: BigInt(solAmt * LAMPORTS_PER_SOL),
+			})
+		);
 
-    const solChunks = chunkArray(solIxs, 10);
-    const solTxns: VersionedTransaction[] = [];
+		const solChunks = chunkArray(solIxs, 10);
+		const solTxns: VersionedTransaction[] = [];
 
-    for (const chunk of solChunks) {
-      solTxns.push(await createAndSignVersionedTx(chunk, blockhash, feePayer));
-    }
+		for (const chunk of solChunks) {
+			solTxns.push(await createAndSignVersionedTx(chunk, blockhash, feePayer));
+		}
 
-    // ── 2. Create WSOL ATA (idempotent) ─────────────────────────────
-    const ataIxs: TransactionInstruction[] = [];
-    for (const kp of keypairs) {
-      const ata = await spl.getAssociatedTokenAddress(spl.NATIVE_MINT, kp.publicKey);
-      ataIxs.push(
-        spl.createAssociatedTokenAccountIdempotentInstruction(
-          feePayer,
-          ata,
-          kp.publicKey,
-          spl.NATIVE_MINT
-        )
-      );
-    }
+		// ── 2. Create WSOL ATA (idempotent) ─────────────────────────────
+		const ataIxs: TransactionInstruction[] = [];
+		for (const kp of keypairs) {
+			const ata = await spl.getAssociatedTokenAddress(spl.NATIVE_MINT, kp.publicKey);
+			ataIxs.push(
+				spl.createAssociatedTokenAccountIdempotentInstruction(
+					feePayer,
+					ata,
+					kp.publicKey,
+					spl.NATIVE_MINT
+				)
+			);
+		}
 
-    const ataChunks = chunkArray(ataIxs, 10);
-    const ataTxns: VersionedTransaction[] = [];
+		const ataChunks = chunkArray(ataIxs, 10);
+		const ataTxns: VersionedTransaction[] = [];
 
-    for (let i = 0; i < ataChunks.length; i++) {
-      const chunk = ataChunks[i];
-      // add tip to the **last** ATA chunk
-      if (i === ataChunks.length - 1) {
-        chunk.push(
-          SystemProgram.transfer({
-            fromPubkey: feePayer,
-            toPubkey: tipAcct,
-            lamports: BigInt(jitoTipAmt),
-          })
-        );
-        console.log("Jito tip added");
-      }
-      ataTxns.push(await createAndSignVersionedTx(chunk, blockhash, feePayer));
-    }
+		for (let i = 0; i < ataChunks.length; i++) {
+			const chunk = ataChunks[i];
+			// add tip to the **last** ATA chunk
+			if (i === ataChunks.length - 1) {
+				chunk.push(
+					SystemProgram.transfer({
+						fromPubkey: feePayer,
+						toPubkey: tipAcct,
+						lamports: BigInt(jitoTipAmt),
+					})
+				);
+				console.log("Jito tip added");
+			}
+			ataTxns.push(await createAndSignVersionedTx(chunk, blockhash, feePayer));
+		}
 
-    // ── 3. Bundle & send ───────────────────────────────────────
-    const allTxns = [...solTxns, ...ataTxns];
-    const bundleId = await sendBundle(allTxns);
+		// ── 3. Bundle & send ───────────────────────────────────────
+		const allTxns = [...solTxns, ...ataTxns];
+		const bundleId = await sendBundle(allTxns);
 
-    return {
-      success: true,
-      message: `Sent ${solAmt} SOL + created WSOL ATAs for ${keypairs.length} wallets`,
-      txCount: allTxns.length,
-      bundleId,
-    };
-  } catch (err: any) {
-    console.error("distributeSolAndCreateATA error:", err);
-    return { success: false, message: `Error: ${err.message}` };
-  }
+		return {
+			success: true,
+			message: `Sent ${solAmt} SOL + created WSOL ATAs for ${keypairs.length} wallets`,
+			txCount: allTxns.length,
+			bundleId,
+		};
+	} catch (err: any) {
+		console.error("distributeSolAndCreateATA error:", err);
+		return { success: false, message: `Error: ${err.message}` };
+	}
 }
 
 /** -------------------------------------------------------------------------- */
 /** 2. SEND WSOL (actual volume)                                               */
 /** -------------------------------------------------------------------------- */
 export async function distributeWSOL(
-  amountPerWallet: number, // WSOL amount **per wallet** in SOL
-  jitoTipAmt: number,      // tip in lamports
-  steps: number = 5,
-  feePayer: PublicKey
+	userId: number,
+	amountPerWallet: number, // WSOL amount **per wallet** in SOL
+	jitoTipAmt: number,      // tip in lamports
+	steps: number = 5,
+	feePayer: PublicKey
 ): Promise<DistributeResult> {
-  try {
-    if (amountPerWallet <= 0 || jitoTipAmt <= 0 || steps <= 0)
-      return { success: false, message: "All numeric inputs must be > 0" };
+	try {
+		if (amountPerWallet <= 0 || jitoTipAmt <= 0 || steps <= 0)
+			return { success: false, message: "All numeric inputs must be > 0" };
 
-    const keypairs = loadKeypairs().slice(0, steps);
-    if (keypairs.length === 0)
-      return { success: false, message: "No keypairs loaded" };
+		const keypairs = loadKeypairs(userId).slice(0, steps);
+		if (keypairs.length === 0)
+			return { success: false, message: "No keypairs loaded" };
 
-    const { blockhash } = await connection.getLatestBlockhash();
+		const { blockhash } = await connection.getLatestBlockhash();
 
-    // Build WSOL-wrap instructions (sync + transfer)
-    const wsolIxs: TransactionInstruction[] = [];
-    for (const kp of keypairs) {
-      const ata = await spl.getAssociatedTokenAddress(spl.NATIVE_MINT, kp.publicKey);
+		// Build WSOL-wrap instructions (sync + transfer)
+		const wsolIxs: TransactionInstruction[] = [];
+		for (const kp of keypairs) {
+			const ata = await spl.getAssociatedTokenAddress(spl.NATIVE_MINT, kp.publicKey);
 
-      // 1. sync native balance (idempotent)
-      wsolIxs.push(spl.createSyncNativeInstruction(ata));
+			// 1. sync native balance (idempotent)
+			wsolIxs.push(spl.createSyncNativeInstruction(ata));
 
-      // 2. transfer WSOL from payer → ATA
-      wsolIxs.push(
-        spl.createTransferInstruction(
-          await spl.getAssociatedTokenAddress(spl.NATIVE_MINT, feePayer),
-          ata,
-          feePayer,
-          BigInt(amountPerWallet * LAMPORTS_PER_SOL)
-        )
-      );
-    }
+			// 2. transfer WSOL from payer → ATA
+			wsolIxs.push(
+				spl.createTransferInstruction(
+					await spl.getAssociatedTokenAddress(spl.NATIVE_MINT, feePayer),
+					ata,
+					feePayer,
+					BigInt(amountPerWallet * LAMPORTS_PER_SOL)
+				)
+			);
+		}
 
-    // Add tip to the **last** chunk
-    const chunks = chunkArray(wsolIxs, 6);
-    const txns: VersionedTransaction[] = [];
+		// Add tip to the **last** chunk
+		const chunks = chunkArray(wsolIxs, 6);
+		const txns: VersionedTransaction[] = [];
 
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      if (i === chunks.length - 1) {
-        chunk.push(
-          SystemProgram.transfer({
-            fromPubkey: feePayer,
-            toPubkey: tipAcct,
-            lamports: BigInt(jitoTipAmt),
-          })
-        );
-        console.log("Jito tip added");
-      }
-      txns.push(await createAndSignVersionedTx(chunk, blockhash, feePayer));
-    }
+		for (let i = 0; i < chunks.length; i++) {
+			const chunk = chunks[i];
+			if (i === chunks.length - 1) {
+				chunk.push(
+					SystemProgram.transfer({
+						fromPubkey: feePayer,
+						toPubkey: tipAcct,
+						lamports: BigInt(jitoTipAmt),
+					})
+				);
+				console.log("Jito tip added");
+			}
+			txns.push(await createAndSignVersionedTx(chunk, blockhash, feePayer));
+		}
 
-    const bundleId = await sendBundle(txns);
+		const bundleId = await sendBundle(txns);
 
-    return {
-      success: true,
-      message: `Sent ${amountPerWallet} WSOL to ${keypairs.length} wallets`,
-      txCount: txns.length,
-      bundleId,
-    };
-  } catch (err: any) {
-    console.error("distributeWSOL error:", err);
-    return { success: false, message: `Error: ${err.message}` };
-  }
+		return {
+			success: true,
+			message: `Sent ${amountPerWallet} WSOL to ${keypairs.length} wallets`,
+			txCount: txns.length,
+			bundleId,
+		};
+	} catch (err: any) {
+		console.error("distributeWSOL error:", err);
+		return { success: false, message: `Error: ${err.message}` };
+	}
 }
 
 /** -------------------------------------------------------------------------- */
@@ -224,92 +226,92 @@ export async function distributeWSOL(
 /** -------------------------------------------------------------------------- */
 
 export interface ReclaimResult {
-  success: boolean;
-  bundleId?: string;
-  message: string;
-  reclaimedCount?: number;
+	success: boolean;
+	bundleId?: string;
+	message: string;
+	reclaimedCount?: number;
 }
 
-export async function createReturns(jitoTipSOL: number = 0.01): Promise<ReclaimResult> {
-  const keypairs = loadKeypairs();
-  if (keypairs.length === 0) {
-    return { success: false, message: "No keypairs found in ./keypairs" };
-  }
+export async function createReturns(userId: number,jitoTipSOL: number = 0.01): Promise<ReclaimResult> {
+	const keypairs = loadKeypairs(userId);
+	if (keypairs.length === 0) {
+		return { success: false, message: "No keypairs found in ./keypairs" };
+	}
 
-  const jitoTipLamports = Math.round(jitoTipSOL * LAMPORTS_PER_SOL);
-  const { blockhash } = await connection.getLatestBlockhash();
+	const jitoTipLamports = Math.round(jitoTipSOL * LAMPORTS_PER_SOL);
+	const { blockhash } = await connection.getLatestBlockhash();
 
-  const txns: VersionedTransaction[] = [];
-  const chunkSize = 2;
+	const txns: VersionedTransaction[] = [];
+	const chunkSize = 2;
 
-  for (let i = 0; i < keypairs.length; i += chunkSize) {
-    const chunk = keypairs.slice(i, i + chunkSize);
-    const ixs: TransactionInstruction[] = [];
+	for (let i = 0; i < keypairs.length; i += chunkSize) {
+		const chunk = keypairs.slice(i, i + chunkSize);
+		const ixs: TransactionInstruction[] = [];
 
-    for (const kp of chunk) {
-      const wsolATA = await spl.getAssociatedTokenAddress(spl.NATIVE_MINT, kp.publicKey);
+		for (const kp of chunk) {
+			const wsolATA = await spl.getAssociatedTokenAddress(spl.NATIVE_MINT, kp.publicKey);
 
-      // Close WSOL ATA → send lamports to main wallet
-      ixs.push(
-        spl.createCloseAccountInstruction(wsolATA, wallet.publicKey, kp.publicKey)
-      );
+			// Close WSOL ATA → send lamports to main wallet
+			ixs.push(
+				spl.createCloseAccountInstruction(wsolATA, wallet.publicKey, kp.publicKey)
+			);
 
-      // Send all native SOL back
-      const bal = await connection.getBalance(kp.publicKey);
-      if (bal > 5000) { // leave dust for rent
-        ixs.push(
-          SystemProgram.transfer({
-            fromPubkey: kp.publicKey,
-            toPubkey: wallet.publicKey,
-            lamports: BigInt(bal - 5000),
-          })
-        );
-      }
-    }
+			// Send all native SOL back
+			const bal = await connection.getBalance(kp.publicKey);
+			if (bal > 5000) { // leave dust for rent
+				ixs.push(
+					SystemProgram.transfer({
+						fromPubkey: kp.publicKey,
+						toPubkey: wallet.publicKey,
+						lamports: BigInt(bal - 5000),
+					})
+				);
+			}
+		}
 
-    // Add tip on **last chunk only**
-    if (i + chunkSize >= keypairs.length) {
-      ixs.push(
-        SystemProgram.transfer({
-          fromPubkey: wallet.publicKey,
-          toPubkey: tipAcct,
-          lamports: BigInt(jitoTipLamports),
-        })
-      );
-    }
+		// Add tip on **last chunk only**
+		if (i + chunkSize >= keypairs.length) {
+			ixs.push(
+				SystemProgram.transfer({
+					fromPubkey: wallet.publicKey,
+					toPubkey: tipAcct,
+					lamports: BigInt(jitoTipLamports),
+				})
+			);
+		}
 
-    const msg = new TransactionMessage({
-      payerKey: wallet.publicKey,
-      recentBlockhash: blockhash,
-      instructions: ixs,
-    }).compileToV0Message();
+		const msg = new TransactionMessage({
+			payerKey: wallet.publicKey,
+			recentBlockhash: blockhash,
+			instructions: ixs,
+		}).compileToV0Message();
 
-    const tx = new VersionedTransaction(msg);
-    const signers = [wallet, ...chunk];
-    tx.sign(signers);
+		const tx = new VersionedTransaction(msg);
+		const signers = [wallet, ...chunk];
+		tx.sign(signers);
 
-    const ser = tx.serialize();
-    if (ser.length > 1232) {
-      return { success: false, message: `Tx too big: ${ser.length} bytes` };
-    }
+		const ser = tx.serialize();
+		if (ser.length > 1232) {
+			return { success: false, message: `Tx too big: ${ser.length} bytes` };
+		}
 
-    txns.push(tx);
-  }
+		txns.push(tx);
+	}
 
-  try {
-    const bundle = new JitoBundle(txns, txns.length);
-    const bundleId = await searcherClient.sendBundle(bundle);
-    console.log(`Reclaim bundle sent: ${bundleId}`);
+	try {
+		const bundle = new JitoBundle(txns, txns.length);
+		const bundleId = await searcherClient.sendBundle(bundle);
+		console.log(`Reclaim bundle sent: ${bundleId}`);
 
-    return {
-      success: true,
-      bundleId,
-      reclaimedCount: keypairs.length,
-      message: `Reclaimed ${keypairs.length} wallet(s)`,
-    };
-  } catch (err: any) {
-    return { success: false, message: `Bundle failed: ${err.message}` };
-  }
+		return {
+			success: true,
+			bundleId,
+			reclaimedCount: keypairs.length,
+			message: `Reclaimed ${keypairs.length} wallet(s)`,
+		};
+	} catch (err: any) {
+		return { success: false, message: `Bundle failed: ${err.message}` };
+	}
 }
 
 // export async function createReturns(
@@ -391,33 +393,34 @@ export async function createReturns(jitoTipSOL: number = 0.01): Promise<ReclaimR
 /** 4. PUBLIC ENTRYPOINT (called from telegram-bot)                           */
 /** -------------------------------------------------------------------------- */
 export async function sender(
-  feePayer: PublicKey,
-  options: {
-    mode: "sol+ata" | "wsol" | "reclaim";
-    solAmt?: number;          // only for sol+ata
-    wsolAmtPerWallet?: number;// only for wsol
-    jitoTipAmt?: number;      // lamports, defaults 0.01 SOL
-    steps?: number;           // default 5
-  }
+	userId: number,
+	feePayer: PublicKey,
+	options: {
+		mode: "sol+ata" | "wsol" | "reclaim";
+		solAmt?: number;          // only for sol+ata
+		wsolAmtPerWallet?: number;// only for wsol
+		jitoTipAmt?: number;      // lamports, defaults 0.01 SOL
+		steps?: number;           // default 5
+	}
 ): Promise<DistributeResult> {
-  const tip = options.jitoTipAmt ?? 0.01 * LAMPORTS_PER_SOL;
-  const steps = options.steps ?? 5;
+	const tip = options.jitoTipAmt ?? 0.01 * LAMPORTS_PER_SOL;
+	const steps = options.steps ?? 5;
 
-  switch (options.mode) {
-    case "sol+ata":
-      if (!options.solAmt) return { success: false, message: "solAmt required" };
-      return distributeSolAndCreateATA(options.solAmt, tip, steps, feePayer);
+	switch (options.mode) {
+		case "sol+ata":
+			if (!options.solAmt) return { success: false, message: "solAmt required" };
+			return distributeSolAndCreateATA(userId,options.solAmt, tip, steps, feePayer);
 
-    case "wsol":
-      if (!options.wsolAmtPerWallet) return { success: false, message: "wsolAmtPerWallet required" };
-      return distributeWSOL(options.wsolAmtPerWallet, tip, steps, feePayer);
+		case "wsol":
+			if (!options.wsolAmtPerWallet) return { success: false, message: "wsolAmtPerWallet required" };
+			return distributeWSOL(userId,options.wsolAmtPerWallet, tip, steps, feePayer);
 
-    case "reclaim":
-      return createReturns(tip);
+		case "reclaim":
+			return createReturns(tip);
 
-    default:
-      return { success: false, message: "Invalid mode" };
-  }
+		default:
+			return { success: false, message: "Invalid mode" };
+	}
 }
 
 // import {
@@ -618,10 +621,10 @@ export async function sender(
 
 //     /*
 //     // Optional: Simulate
-//     const simulationResult = await connection.simulateTransaction(versionedTx, { 
+//     const simulationResult = await connection.simulateTransaction(versionedTx, {
 //         commitment: "processed",
 //         replaceRecentBlockhash: true,
-//         sigVerify: false 
+//         sigVerify: false
 //     });
 
 //     if (simulationResult.value.err) {

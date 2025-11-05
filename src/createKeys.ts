@@ -1,21 +1,24 @@
+// src/createKeys.ts
 import { Keypair, PublicKey } from '@solana/web3.js';
 import * as fs from 'fs';
-import path from 'path';
+import * as path from 'path';
 
-const keypairsDir = path.join(__dirname, 'keypairs');
-const keyInfoPath = path.join(__dirname, 'keyInfo.json');
-
-interface IPoolInfo {
-  [key: string]: any;
-  numOfWallets?: number;
+interface CreateKeypairsResult {
+  success: boolean;
+  message: string;
+  wallets: Keypair[];
+  pubkeys?: string[];
 }
 
-// Ensure directory exists
-if (!fs.existsSync(keypairsDir)) {
-  fs.mkdirSync(keypairsDir, { recursive: true });
+// === PER-USER KEYPAIRS ===
+export function getUserKeypairsDir(userId: number): string {
+  const userDir = path.join(__dirname, 'user_keypairs', userId.toString());
+  if (!fs.existsSync(userDir)) {
+    fs.mkdirSync(userDir, { recursive: true });
+  }
+  return userDir;
 }
 
-// --- Helper Functions ---
 function generateWallets(num: number): Keypair[] {
   const wallets: Keypair[] = [];
   for (let i = 0; i < num; i++) {
@@ -24,33 +27,27 @@ function generateWallets(num: number): Keypair[] {
   return wallets;
 }
 
-function saveKeypairToFile(keypair: Keypair, index: number) {
-  const filePath = path.join(keypairsDir, `keypair${index + 1}.json`);
+function saveKeypairToFile(keypair: Keypair, index: number, userDir: string) {
+  const filePath = path.join(userDir, `keypair${index + 1}.json`);
   fs.writeFileSync(filePath, JSON.stringify(Array.from(keypair.secretKey)));
 }
 
-function readKeypairsFromDisk(): Keypair[] {
-  const files = fs.readdirSync(keypairsDir)
+function readKeypairsFromDisk(userDir: string): Keypair[] {
+  const files = fs.readdirSync(userDir)
     .filter(f => /^keypair\d+\.json$/.test(f))
-    .sort(); // optional: keep order
+    .sort();
 
   return files.map(file => {
-    const filePath = path.join(keypairsDir, file);
+    const filePath = path.join(userDir, file);
     const secretKey = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
     return Keypair.fromSecretKey(new Uint8Array(secretKey));
   });
 }
 
-function updatePoolInfo(wallets: Keypair[]) {
-  let poolInfo: IPoolInfo = {};
+function updatePoolInfo(wallets: Keypair[], userDir: string) {
+  const keyInfoPath = path.join(userDir, 'keyInfo.json');
+  const poolInfo: any = { numOfWallets: wallets.length };
 
-  if (fs.existsSync(keyInfoPath)) {
-    try {
-      poolInfo = JSON.parse(fs.readFileSync(keyInfoPath, 'utf8'));
-    } catch {}
-  }
-
-  poolInfo.numOfWallets = wallets.length;
   wallets.forEach((w, i) => {
     poolInfo[`pubkey${i + 1}`] = w.publicKey.toString();
   });
@@ -58,94 +55,206 @@ function updatePoolInfo(wallets: Keypair[]) {
   fs.writeFileSync(keyInfoPath, JSON.stringify(poolInfo, null, 2));
 }
 
-// --- EXPORTED: Telegram-Compatible ---
-export interface CreateKeypairsResult {
-  success: boolean;
-  message: string;
-  wallets: Keypair[];
-  pubkeys?: string[];
-}
-
-/**
- * Create or load keypairs — **no prompts**
- * @param mode 'create' | 'use'
- * @param numWallets Only used if mode === 'create'
- */
+// === EXPORT: PER-USER CREATE ===
 export async function createKeypairs(
+  userId: number,
   mode: 'create' | 'use',
   numWallets: number = 5
 ): Promise<CreateKeypairsResult> {
+  const userDir = getUserKeypairsDir(userId);
+
   try {
     let wallets: Keypair[] = [];
     let message = '';
 
     if (mode === 'create') {
-      if (!Number.isInteger(numWallets) || numWallets <= 0) {
-        return {
-          success: false,
-          message: 'Invalid number of wallets. Must be positive integer.',
-          wallets: []
-        };
+      if (!Number.isInteger(numWallets) || numWallets <= 0 || numWallets > 20) {
+        return { success: false, message: 'Use 1–20 wallets.', wallets: [] };
       }
 
-      // Warn: only safe if wallets are empty
-      const existing = readKeypairsFromDisk();
+      const existing = readKeypairsFromDisk(userDir);
       if (existing.length > 0) {
-        return {
-          success: false,
-          message: 'Existing keypairs found! Delete them first or use "use" mode.',
-          wallets: []
-        };
+        return { success: false, message: 'You already have keypairs! Use "use" mode.', wallets: [] };
       }
 
       wallets = generateWallets(numWallets);
-      wallets.forEach((w, i) => saveKeypairToFile(w, i));
-      message = `Created ${wallets.length} new keypairs.`;
+      wallets.forEach((w, i) => saveKeypairToFile(w, i, userDir));
+      message = `Created ${wallets.length} keypairs for you.`;
     }
     else if (mode === 'use') {
-      wallets = readKeypairsFromDisk();
+      wallets = readKeypairsFromDisk(userDir);
       if (wallets.length === 0) {
-        return {
-          success: false,
-          message: 'No existing keypairs found in /keypairs folder.',
-          wallets: []
-        };
+        return { success: false, message: 'No keypairs found. Use "create" first.', wallets: [] };
       }
-      message = `Loaded ${wallets.length} existing keypairs.`;
+      message = `Loaded ${wallets.length} keypairs.`;
     }
     else {
-      return {
-        success: false,
-        message: 'Invalid mode. Use "create" or "use".',
-        wallets: []
-      };
+      return { success: false, message: 'Invalid mode.', wallets: [] };
     }
 
-    // Update pool info
-    updatePoolInfo(wallets);
-
-    // Return pubkeys for Telegram display
+    updatePoolInfo(wallets, userDir);
     const pubkeys = wallets.map(w => w.publicKey.toString());
 
-    return {
-      success: true,
-      message,
-      wallets,
-      pubkeys
-    };
+    return { success: true, message, wallets, pubkeys };
   } catch (err: any) {
-    return {
-      success: false,
-      message: `Error: ${err.message}`,
-      wallets: []
-    };
+    return { success: false, message: `Error: ${err.message}`, wallets: [] };
   }
 }
 
-// --- Optional: Legacy loader (unchanged) ---
-export function loadKeypairs(): Keypair[] {
-  return readKeypairsFromDisk();
+// === LOAD FOR USER ===
+export function loadKeypairs(userId: number): Keypair[] {
+  const userDir = getUserKeypairsDir(userId);
+  return readKeypairsFromDisk(userDir);
 }
+
+// import { Keypair, PublicKey } from '@solana/web3.js';
+// import * as fs from 'fs';
+// import path from 'path';
+
+// const keypairsDir = path.join(__dirname, 'keypairs');
+// const keyInfoPath = path.join(__dirname, 'keyInfo.json');
+
+// interface IPoolInfo {
+//   [key: string]: any;
+//   numOfWallets?: number;
+// }
+
+// // Ensure directory exists
+// if (!fs.existsSync(keypairsDir)) {
+//   fs.mkdirSync(keypairsDir, { recursive: true });
+// }
+
+// // --- Helper Functions ---
+// function generateWallets(num: number): Keypair[] {
+//   const wallets: Keypair[] = [];
+//   for (let i = 0; i < num; i++) {
+//     wallets.push(Keypair.generate());
+//   }
+//   return wallets;
+// }
+
+// function saveKeypairToFile(keypair: Keypair, index: number) {
+//   const filePath = path.join(keypairsDir, `keypair${index + 1}.json`);
+//   fs.writeFileSync(filePath, JSON.stringify(Array.from(keypair.secretKey)));
+// }
+
+// function readKeypairsFromDisk(): Keypair[] {
+//   const files = fs.readdirSync(keypairsDir)
+//     .filter(f => /^keypair\d+\.json$/.test(f))
+//     .sort(); // optional: keep order
+
+//   return files.map(file => {
+//     const filePath = path.join(keypairsDir, file);
+//     const secretKey = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+//     return Keypair.fromSecretKey(new Uint8Array(secretKey));
+//   });
+// }
+
+// function updatePoolInfo(wallets: Keypair[]) {
+//   let poolInfo: IPoolInfo = {};
+
+//   if (fs.existsSync(keyInfoPath)) {
+//     try {
+//       poolInfo = JSON.parse(fs.readFileSync(keyInfoPath, 'utf8'));
+//     } catch {}
+//   }
+
+//   poolInfo.numOfWallets = wallets.length;
+//   wallets.forEach((w, i) => {
+//     poolInfo[`pubkey${i + 1}`] = w.publicKey.toString();
+//   });
+
+//   fs.writeFileSync(keyInfoPath, JSON.stringify(poolInfo, null, 2));
+// }
+
+// // --- EXPORTED: Telegram-Compatible ---
+// export interface CreateKeypairsResult {
+//   success: boolean;
+//   message: string;
+//   wallets: Keypair[];
+//   pubkeys?: string[];
+// }
+
+// /**
+//  * Create or load keypairs — **no prompts**
+//  * @param mode 'create' | 'use'
+//  * @param numWallets Only used if mode === 'create'
+//  */
+// export async function createKeypairs(
+//   mode: 'create' | 'use',
+//   numWallets: number = 5
+// ): Promise<CreateKeypairsResult> {
+//   try {
+//     let wallets: Keypair[] = [];
+//     let message = '';
+
+//     if (mode === 'create') {
+//       if (!Number.isInteger(numWallets) || numWallets <= 0) {
+//         return {
+//           success: false,
+//           message: 'Invalid number of wallets. Must be positive integer.',
+//           wallets: []
+//         };
+//       }
+
+//       // Warn: only safe if wallets are empty
+//       const existing = readKeypairsFromDisk();
+//       if (existing.length > 0) {
+//         return {
+//           success: false,
+//           message: 'Existing keypairs found! Delete them first or use "use" mode.',
+//           wallets: []
+//         };
+//       }
+
+//       wallets = generateWallets(numWallets);
+//       wallets.forEach((w, i) => saveKeypairToFile(w, i));
+//       message = `Created ${wallets.length} new keypairs.`;
+//     }
+//     else if (mode === 'use') {
+//       wallets = readKeypairsFromDisk();
+//       if (wallets.length === 0) {
+//         return {
+//           success: false,
+//           message: 'No existing keypairs found in /keypairs folder.',
+//           wallets: []
+//         };
+//       }
+//       message = `Loaded ${wallets.length} existing keypairs.`;
+//     }
+//     else {
+//       return {
+//         success: false,
+//         message: 'Invalid mode. Use "create" or "use".',
+//         wallets: []
+//       };
+//     }
+
+//     // Update pool info
+//     updatePoolInfo(wallets);
+
+//     // Return pubkeys for Telegram display
+//     const pubkeys = wallets.map(w => w.publicKey.toString());
+
+//     return {
+//       success: true,
+//       message,
+//       wallets,
+//       pubkeys
+//     };
+//   } catch (err: any) {
+//     return {
+//       success: false,
+//       message: `Error: ${err.message}`,
+//       wallets: []
+//     };
+//   }
+// }
+
+// // --- Optional: Legacy loader (unchanged) ---
+// export function loadKeypairs(): Keypair[] {
+//   return readKeypairsFromDisk();
+// }
 
 // import  {Keypair}  from '@solana/web3.js';
 // import * as fs from 'fs';

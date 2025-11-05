@@ -159,6 +159,7 @@ export interface VolumeResult {
 }
 
 export async function volume(
+	 userId: number,
   marketID: string,
   cycles: number,
   delaySec: number,
@@ -172,7 +173,7 @@ export async function volume(
     };
   }
 
-  const keypairs = loadKeypairs();
+  const keypairs = loadKeypairs(userId);
   if (keypairs.length === 0) {
     return {
       success: false,

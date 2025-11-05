@@ -1,0 +1,5 @@
+{
+  "start": "node dist/telegram-bot.js",
+  "build": "tsc",
+  "port": 3000
+}

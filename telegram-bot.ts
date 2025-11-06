@@ -68,6 +68,8 @@ const ADMIN_ID = Number(process.env.ADMIN_ID) || 123456789;
 
 const bot = new Telegraf(TELEGRAM_TOKEN);
 
+bot.telegram.webhookReply = false;  
+
 // === Extend Context with Session ===
 interface BotSession {
     waitingFor?: "dist_sol_ata" | "dist_wsol" | "simulate" | "volume";

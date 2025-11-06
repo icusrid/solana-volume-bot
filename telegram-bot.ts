@@ -1,4 +1,4 @@
-import { Telegraf, Context, session, Markup } from "telegraf";
+import { Telegraf, Context, session, Markup, } from "telegraf";
 import { createKeypairs } from "./src/createKeys";
 import { volume } from "./src/bot";
 import { sender, createReturns } from "./src/distribute";
@@ -11,6 +11,7 @@ import path from "path";
 import { setUserWallet } from "./config";
 import express from 'express';
 import { raw } from 'express';
+
 import { Update } from "telegraf/typings/core/types/typegram";
 
 dotenv.config();
@@ -19,15 +20,27 @@ const app = express();
 // app.use(express.json());
 app.use(raw({ type: 'application/json' }));  // ← Telegram sends RAW body!
 
+// app.post(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
+//   try {
+//     bot.handleUpdate(req.body);
+//     res.sendStatus(200);
+//   } catch (err) {
+//     console.error("Webhook error:", err);
+//     res.sendStatus(200); // Always 200
+//   }
+// });
+
+// app.use(await bot.createWebhook({
+//     domain: process.env.WEBHOOK_DOMAIN,
+//     // secretToken: process.env.WEBHOOK_SECRET,
+// }));
+
+// TELEGRAF v4 WEBHOOK (ONE LINE!)
 app.post(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
-  try {
-    bot.handleUpdate(req.body);
-    res.sendStatus(200);
-  } catch (err) {
-    console.error("Webhook error:", err);
-    res.sendStatus(200); // Always 200
-  }
+  bot.handleUpdate(req.body as any).finally(() => res.sendStatus(200));
 });
+
+// app.post(`/bot${process.env.TELEGRAM_TOKEN}`, webhookCallback(bot, 'express'));
 
 app.get(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
   res.status(200).send("Volume Bot Webhook Active (POST only)");

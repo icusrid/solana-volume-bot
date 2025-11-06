@@ -35,6 +35,27 @@ app.use(raw({ type: 'application/json' }));  // ← Telegram sends RAW body!
 //     // secretToken: process.env.WEBHOOK_SECRET,
 // }));
 
+
+
+
+
+
+// === MARKDOWN V2 ESCAPE ===
+const esc = (text: string): string =>
+  text.replace(/([_*[\]()~`>#+\-=|{}.!])/g, "\\$1");
+
+// === USER WALLETS ===
+const WALLETS_DIR = path.join(__dirname, "user_wallets");
+if (!fs.existsSync(WALLETS_DIR)) fs.mkdirSync(WALLETS_DIR);
+
+// === CONFIG ===
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || "YOUR_BOT_TOKEN";
+const ADMIN_ID = Number(process.env.ADMIN_ID) || 123456789;
+
+const bot = new Telegraf(TELEGRAM_TOKEN);
+
+bot.telegram.webhookReply = true;  
+
 app.post(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
   // 1. Pass the parsed update (req.body) and the response object (res)
   bot.handleUpdate(req.body as any, res)
@@ -57,25 +78,6 @@ app.get('/', (req, res) => {
   res.status(200).send('Volume Bot OK - Webhook Active');
 });
 
-
-
-
-
-// === MARKDOWN V2 ESCAPE ===
-const esc = (text: string): string =>
-  text.replace(/([_*[\]()~`>#+\-=|{}.!])/g, "\\$1");
-
-// === USER WALLETS ===
-const WALLETS_DIR = path.join(__dirname, "user_wallets");
-if (!fs.existsSync(WALLETS_DIR)) fs.mkdirSync(WALLETS_DIR);
-
-// === CONFIG ===
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || "YOUR_BOT_TOKEN";
-const ADMIN_ID = Number(process.env.ADMIN_ID) || 123456789;
-
-const bot = new Telegraf(TELEGRAM_TOKEN);
-
-bot.telegram.webhookReply = true;  
 
 // === Extend Context with Session ===
 interface BotSession {

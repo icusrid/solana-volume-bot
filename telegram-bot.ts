@@ -21,7 +21,6 @@ dotenv.config();
 
 // === CONFIG ===
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || "YOUR_BOT_TOKEN";
-const WEBHOOK_DOMAIN = process.env.WEBHOOK_DOMAIN || "solana-volume-bot-production.up.railway.app";
 const ADMIN_ID = Number(process.env.ADMIN_ID) || 123456789;
 
 const bot = new Telegraf(TELEGRAM_TOKEN);
@@ -63,7 +62,9 @@ app.get(`/webhook/${process.env.TELEGRAM_TOKEN}`, (req, res) => {
   res.status(200).send("Volume Bot Webhook Active (POST only)");
 });
 
-
+app.get('/', (req, res) => {
+  res.status(200).send('Volume Bot OK - Webhook Active');
+});
 
 
 // === Extend Context with Session ===
@@ -454,34 +455,35 @@ bot.on("text", async (ctx) => {
   }
 });
 
-// === Launch ===
-const PORT = Number(process.env.PORT) || 8080;
+// === TELEGRAF v4 WEBHOOK MIDDLEWARE ===
+async function startServer() {
+  const PORT = Number(process.env.PORT) || 3000;
 
-// Use webhook in production, polling in dev
-(async () => {
-    if (process.env.RAILWAY_ENVIRONMENT) {
-
-    app.use(await bot.createWebhook({ domain: 'solana-volume-bot-production.up.railway.app'}))
-    app.get('/', (req, res) => {
-  res.status(200).send('Volume Bot OK - Webhook Active');
-});
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`🌍 Webhook domain: https://${process.env.RAILWAY_STATIC_URL}`);
-    // const url = `https://${process.env.RAILWAY_STATIC_URL}/webhook/${process.env.TELEGRAM_TOKEN}`;
-    // console.log("LIVE →", url);
-    // bot.telegram.setWebhook(url)
-    //   .then(() => console.log("Webhook registered"))
-    //   .catch(e => console.error("Webhook FAIL:", e.message));
+  // Create webhook middleware
+  const webhook = await bot.createWebhook({
+    domain: `https://${process.env.RAILWAY_STATIC_URL}`,
+    path: `/webhook/${process.env.TELEGRAM_TOKEN}`,
   });
-} else {
-  bot.launch(); // polling
-  console.log("Polling (local)");
+
+  // Use it
+  app.use(raw({ type: 'application/json' }));
+  app.use(webhook);  // ← THIS IS YOUR MIDDLEWARE
+
+  // Health
+  app.get('/', (req, res) => res.send('Solana Volume Bot LIVE'));
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log('LIVE →', `https://${process.env.RAILWAY_STATIC_URL}/webhook/${process.env.TELEGRAM_TOKEN}`);
+  });
 }
 
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
-})
+// === RUN ===
+if (process.env.RAILWAY_ENVIRONMENT) {
+  startServer().catch(console.error);
+} else {
+  bot.launch(); // polling
+  console.log('Polling (local)');
+}
 
 
 

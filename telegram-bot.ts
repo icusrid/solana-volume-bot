@@ -35,11 +35,18 @@ app.use(raw({ type: 'application/json' }));  // ← Telegram sends RAW body!
 //     // secretToken: process.env.WEBHOOK_SECRET,
 // }));
 
-// TELEGRAF v4 WEBHOOK (ONE LINE!)
 app.post(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
-  bot.handleUpdate(req.body as any).finally(() => res.sendStatus(200));
+  // 1. Pass the parsed update (req.body) and the response object (res)
+  bot.handleUpdate(req.body as any, res)
+   
+    .catch(err => {
+      console.error('Telegraf handleUpdate Error:', err);
+      // Ensure the request is closed if Telegraf failed to handle it.
+      if (!res.headersSent) {
+        res.sendStatus(500); 
+      }
+    });
 });
-
 // app.post(`/bot${process.env.TELEGRAM_TOKEN}`, webhookCallback(bot, 'express'));
 
 app.get(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
@@ -68,7 +75,7 @@ const ADMIN_ID = Number(process.env.ADMIN_ID) || 123456789;
 
 const bot = new Telegraf(TELEGRAM_TOKEN);
 
-bot.telegram.webhookReply = false;  
+bot.telegram.webhookReply = true;  
 
 // === Extend Context with Session ===
 interface BotSession {

@@ -56,7 +56,7 @@ const bot = new Telegraf(TELEGRAM_TOKEN);
 
 bot.telegram.webhookReply = true;  
 
-app.post(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
+app.post(`/webhook/${process.env.TELEGRAM_TOKEN}`, (req, res) => {
   // 1. Pass the parsed update (req.body) and the response object (res)
   bot.handleUpdate(req.body as any, res)
    

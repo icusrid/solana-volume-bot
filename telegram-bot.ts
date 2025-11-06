@@ -473,7 +473,7 @@ const PORT = Number(process.env.PORT) || 8080;
 // Use webhook in production, polling in dev
 if (process.env.RAILWAY_ENVIRONMENT) {
   app.listen(PORT, "0.0.0.0", () => {
-    const url = `https://${process.env.RAILWAY_STATIC_URL}/bot${process.env.TELEGRAM_TOKEN}`;
+    const url = `https://${process.env.RAILWAY_STATIC_URL}/webhook/${process.env.TELEGRAM_TOKEN}`;
     console.log("LIVE →", url);
     bot.telegram.setWebhook(url)
       .then(() => console.log("Webhook registered"))

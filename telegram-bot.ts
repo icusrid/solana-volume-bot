@@ -20,8 +20,17 @@ const app = express();
 app.use(raw({ type: 'application/json' }));  // ← Telegram sends RAW body!
 
 app.post(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
-  bot.handleUpdate(req.body);    // now works with raw body
-  res.sendStatus(200);           // instant 200 OK
+  try {
+    bot.handleUpdate(req.body);
+    res.sendStatus(200);
+  } catch (err) {
+    console.error("Webhook error:", err);
+    res.sendStatus(200); // Always 200
+  }
+});
+
+app.get(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
+  res.status(200).send("Volume Bot Webhook Active (POST only)");
 });
 
 app.get('/', (req, res) => {

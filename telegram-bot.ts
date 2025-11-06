@@ -478,11 +478,15 @@ async function startServer() {
 }
 
 // === RUN ===
-if (process.env.RAILWAY_ENVIRONMENT) {
+if (!process.env.RAILWAY_ENVIRONMENT) {
   startServer().catch(console.error);
 } else {
-  bot.launch(); // polling
-  console.log('Polling (local)');
+  bot.launch({
+    webhook: {
+        domain: process.env.WEBHOOK_DOMAIN || "beda5533bbcb.ngrok-free.app",
+        port: parseInt(process.env.WEBHOOK_PORT || "3000"),
+    },
+}).then(() => console.log("✅ Volume Bot is running..."));
 }
 
 

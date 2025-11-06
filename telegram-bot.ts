@@ -44,7 +44,7 @@ if (!fs.existsSync(WALLETS_DIR)) fs.mkdirSync(WALLETS_DIR);
 bot.telegram.webhookReply = true;  
 
 
-app.post(`/webhook/${process.env.TELEGRAM_TOKEN}`, (req, res) => {
+app.post(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
   // 1. Pass the parsed update (req.body) and the response object (res)
   bot.handleUpdate(req.body as any, res)
    
@@ -58,7 +58,7 @@ app.post(`/webhook/${process.env.TELEGRAM_TOKEN}`, (req, res) => {
 });
 // app.post(`/bot${process.env.TELEGRAM_TOKEN}`, webhookCallback(bot, 'express'));
 
-app.get(`/webhook/${process.env.TELEGRAM_TOKEN}`, (req, res) => {
+app.get(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
   res.status(200).send("Volume Bot Webhook Active (POST only)");
 });
 
@@ -462,7 +462,7 @@ async function startServer() {
   // Create webhook middleware
   const webhook = await bot.createWebhook({
     domain: `https://${process.env.RAILWAY_STATIC_URL}`,
-    path: `/webhook/${process.env.TELEGRAM_TOKEN}`,
+    path: `/bot${process.env.TELEGRAM_TOKEN}`,
   });
 
   // Use it
@@ -473,7 +473,7 @@ async function startServer() {
   app.get('/', (req, res) => res.send('Solana Volume Bot LIVE'));
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log('LIVE →', `https://${process.env.RAILWAY_STATIC_URL}/webhook/${process.env.TELEGRAM_TOKEN}`);
+    console.log('LIVE →', `https://${process.env.RAILWAY_STATIC_URL}/bot${process.env.TELEGRAM_TOKEN}`);
   });
 }
 

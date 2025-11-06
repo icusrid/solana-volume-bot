@@ -26,7 +26,7 @@ const ADMIN_ID = Number(process.env.ADMIN_ID) || 123456789;
 const bot = new Telegraf(TELEGRAM_TOKEN);
 
 const app = express();
-// app.use(express.json());
+app.use(express.json());
 app.use(raw({ type: 'application/json' }));  // ← Telegram sends RAW body!
 
 

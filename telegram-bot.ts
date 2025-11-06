@@ -11,32 +11,24 @@ import path from "path";
 import { setUserWallet } from "./config";
 import express from 'express';
 import { raw } from 'express';
+import { createServer } from "http";
 
-import { Update } from "telegraf/typings/core/types/typegram";
+//import { Update } from "telegraf/typings/core/types/typegram";
 
 dotenv.config();
+
+
+
+// === CONFIG ===
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || "YOUR_BOT_TOKEN";
+const WEBHOOK_DOMAIN = process.env.WEBHOOK_DOMAIN || "solana-volume-bot-production.up.railway.app";
+const ADMIN_ID = Number(process.env.ADMIN_ID) || 123456789;
+
+const bot = new Telegraf(TELEGRAM_TOKEN);
 
 const app = express();
 // app.use(express.json());
 app.use(raw({ type: 'application/json' }));  // ← Telegram sends RAW body!
-
-// app.post(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
-//   try {
-//     bot.handleUpdate(req.body);
-//     res.sendStatus(200);
-//   } catch (err) {
-//     console.error("Webhook error:", err);
-//     res.sendStatus(200); // Always 200
-//   }
-// });
-
-// app.use(await bot.createWebhook({
-//     domain: process.env.WEBHOOK_DOMAIN,
-//     // secretToken: process.env.WEBHOOK_SECRET,
-// }));
-
-
-
 
 
 
@@ -48,13 +40,10 @@ const esc = (text: string): string =>
 const WALLETS_DIR = path.join(__dirname, "user_wallets");
 if (!fs.existsSync(WALLETS_DIR)) fs.mkdirSync(WALLETS_DIR);
 
-// === CONFIG ===
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || "YOUR_BOT_TOKEN";
-const ADMIN_ID = Number(process.env.ADMIN_ID) || 123456789;
 
-const bot = new Telegraf(TELEGRAM_TOKEN);
 
 bot.telegram.webhookReply = true;  
+
 
 app.post(`/webhook/${process.env.TELEGRAM_TOKEN}`, (req, res) => {
   // 1. Pass the parsed update (req.body) and the response object (res)
@@ -70,13 +59,11 @@ app.post(`/webhook/${process.env.TELEGRAM_TOKEN}`, (req, res) => {
 });
 // app.post(`/bot${process.env.TELEGRAM_TOKEN}`, webhookCallback(bot, 'express'));
 
-app.get(`/bot${process.env.TELEGRAM_TOKEN}`, (req, res) => {
+app.get(`/webhook/${process.env.TELEGRAM_TOKEN}`, (req, res) => {
   res.status(200).send("Volume Bot Webhook Active (POST only)");
 });
 
-app.get('/', (req, res) => {
-  res.status(200).send('Volume Bot OK - Webhook Active');
-});
+
 
 
 // === Extend Context with Session ===
@@ -471,13 +458,21 @@ bot.on("text", async (ctx) => {
 const PORT = Number(process.env.PORT) || 8080;
 
 // Use webhook in production, polling in dev
-if (process.env.RAILWAY_ENVIRONMENT) {
+(async () => {
+    if (process.env.RAILWAY_ENVIRONMENT) {
+
+    app.use(await bot.createWebhook({ domain: 'solana-volume-bot-production.up.railway.app'}))
+    app.get('/', (req, res) => {
+  res.status(200).send('Volume Bot OK - Webhook Active');
+});
+
   app.listen(PORT, "0.0.0.0", () => {
-    const url = `https://${process.env.RAILWAY_STATIC_URL}/webhook/${process.env.TELEGRAM_TOKEN}`;
-    console.log("LIVE →", url);
-    bot.telegram.setWebhook(url)
-      .then(() => console.log("Webhook registered"))
-      .catch(e => console.error("Webhook FAIL:", e.message));
+    console.log(`🌍 Webhook domain: https://${process.env.RAILWAY_STATIC_URL}`);
+    // const url = `https://${process.env.RAILWAY_STATIC_URL}/webhook/${process.env.TELEGRAM_TOKEN}`;
+    // console.log("LIVE →", url);
+    // bot.telegram.setWebhook(url)
+    //   .then(() => console.log("Webhook registered"))
+    //   .catch(e => console.error("Webhook FAIL:", e.message));
   });
 } else {
   bot.launch(); // polling
@@ -486,13 +481,9 @@ if (process.env.RAILWAY_ENVIRONMENT) {
 
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));
+})
 
-process.on('uncaughtException', (err) => {
-  console.error('UNCAUGHT EXCEPTION:', err);
-});
-process.on('unhandledRejection', (err) => {
-  console.error('UNHANDLED REJECTION:', err);
-});
+
 
 
 //=== Launch ===

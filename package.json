@@ -3,6 +3,7 @@
 	"version": "1.0.0",
 	"description": "https://t.me/icus101",
 	"main": "index.js",
+	"type": "module",
 	"scripts": {
 		"dev": "ts-node telegram-bot.ts",
 		"build": "tsc",

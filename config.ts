@@ -9,11 +9,6 @@ export const connection = new Connection("https://devnet.helius-rpc.com/?api-key
   commitment: 'confirmed',
 });
 
-// export const wallet = Keypair.fromSecretKey(
-//   bs58.decode(
-//     '4kW5q5r8ymev1gSge7chW7qv1K5mjtv4GJuKSjXic1r1ZADTRwARCPzbC68EjcETRJ4MG8pnpuUFp4FPB185rZsP' // PRIV KEY OF SOL SENDER
-//   )
-// );
 
 export let wallet: Keypair;
 export let walletPubkey: PublicKey;

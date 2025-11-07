@@ -20,8 +20,7 @@ dotenv.config();
 
 
 // === CONFIG ===
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || "YOUR_BOT_TOKEN";
-const ADMIN_ID = Number(process.env.ADMIN_ID) || 123456789;
+const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || "YOUR_BOT_TOKEN"; 
 
 const bot = new Telegraf(TELEGRAM_TOKEN);
 
@@ -58,9 +57,9 @@ app.post(`/webhook/${process.env.TELEGRAM_TOKEN}`, (req, res) => {
 });
 // app.post(`/bot${process.env.TELEGRAM_TOKEN}`, webhookCallback(bot, 'express'));
 
-app.get(`/webhook/${process.env.TELEGRAM_TOKEN}`, (req, res) => {
-  res.status(200).send("Volume Bot Webhook Active (POST only)");
-});
+// app.get(`/webhook/${process.env.TELEGRAM_TOKEN}`, (req, res) => {
+//   res.status(200).send("Volume Bot Webhook Active (POST only)");
+// });
 
 app.get('/', (req, res) => {
   res.status(200).send('Volume Bot OK - Webhook Active');

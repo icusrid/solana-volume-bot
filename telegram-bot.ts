@@ -477,7 +477,7 @@ async function startServer() {
 }
 
 // === RUN ===
-if (!process.env.RAILWAY_ENVIRONMENT) {
+if (process.env.RAILWAY_ENVIRONMENT) {
   startServer().catch(console.error);
 } else {
   bot.launch({
